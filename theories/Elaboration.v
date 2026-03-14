@@ -4,8 +4,9 @@
     already been elaborated to core expressions and assigned types.
 
     The goal is not to model the full parser or type checker.  Instead, this
-    layer sits between surface morphology and the core formalization in
-    [KipCore.Formalization]:
+    layer sits between surface morphology and the split core formalization in
+    [KipCore.Syntax], [KipCore.Static], [KipCore.Dynamic], and their facts
+    modules:
 
     - surface strings are analyzed by an abstract morphology oracle;
     - each argument already carries its elaborated core expression and the
@@ -16,9 +17,9 @@
     - ambiguity is explicit in the result type rather than being resolved by
       "pick the first match".
 
-    There is an important modeling distinction to keep in mind.  The core
-    language in [Formalization.v] still represents applications as ordinary
-    unresolved [EApp] nodes, and its declarative operational semantics uses
+    There is an important modeling distinction to keep in mind.  The split
+    core development still represents applications as ordinary unresolved
+    [EApp] nodes, and its declarative operational semantics uses
     [full_app_resolves] / [partial_app_resolves] to state which overload a
     step may take.  Kip itself resolves overloading during type checking.
     Consequently, this file has two layers of results:
@@ -26,7 +27,7 @@
     - coherence theorems showing that the compile-time elaborator agrees with
       the existing overloaded core semantics;
     - a small "resolved call-head" layer, added at the end of the file,
-      where the chosen runtime entry is stored directly in the term and the
+      where the chosen entry is stored directly in the term and the
       head-step relation performs no overload search.
 
     The resolved layer is intentionally local to call heads.  This file does
@@ -47,7 +48,11 @@ From Stdlib Require Import Bool.
 From Stdlib Require Import PeanoNat.
 From Stdlib Require Import Sorting.Permutation.
 From Stdlib Require Import Lia.
-From KipCore Require Import Formalization.
+From KipCore Require Import Syntax.
+From KipCore Require Import Static.
+From KipCore Require Import StaticFacts.
+From KipCore Require Import Dynamic.
+From KipCore Require Import DynamicFacts.
 Import ListNotations.
 Open Scope string_scope.
 
@@ -1001,16 +1006,17 @@ Qed.
 
 (** Theorems in this section should be read as compile-time correctness
     results for [elaborate_call] together with coherence results for the
-    existing overloaded core semantics.  Because [Formalization.v] keeps
-    unresolved [EApp] nodes in the core syntax, the bridge theorems below say
-    that a compile-time unique choice agrees with the declarative typing and
-    runtime-resolution relations of that overloaded core.  A separate resolved
-    call-head semantics, added later in this file, packages the same compile-
-    time choice into a term that no longer performs overload search at the
-    elaborated head. *)
+    existing overloaded core semantics.  Because the split core development
+    keeps unresolved [EApp] nodes in the core syntax, the bridge theorems
+    below say that a compile-time unique choice agrees with the declarative
+    static-semantics and dynamic-resolution relations of that overloaded
+    core.  A
+    separate resolved call-head semantics, added later in this file, packages
+    the same compile-time choice into a term that no longer performs overload
+    search at the elaborated head. *)
 
 (** The elaboration layer stores a type next to every elaborated argument.
-    To connect elaboration with the core typing relation, we record the
+    To connect elaboration with the core static semantics, we record the
     intended consistency condition: the stored type is a plain type for the
     stored core expression in the empty context. *)
 Definition elaborated_arg_well_typed
@@ -1395,7 +1401,7 @@ Qed.
 (** A semantically justified exact choice necessarily uses a signature that is
     present in the callable-signature environment for the chosen function
     name.  This projection is useful when relating elaboration choices to the
-    runtime completeness lemmas for [fun_entry_ctx_ok]. *)
+    completeness lemmas for executable entries in [fun_entry_ctx_ok]. *)
 Lemma exact_choice_matches_in_callable_signatures :
   forall analyze env call f sigma args,
     exact_choice_matches analyze env call (ExactChoice f sigma args) ->
@@ -1561,7 +1567,8 @@ Proof.
 Qed.
 
 (** A unique exact elaboration result is therefore enough to recover the
-    declarative typing judgment for the resulting core application. *)
+    declarative static-semantics judgment for the resulting core
+    application. *)
 Theorem elaborate_call_unique_exact_has_plain_type :
   forall analyze env call Se Sf Sc mu f sigma args,
     elaborate_call analyze env call = ElabUnique (ExactChoice f sigma args) ->
@@ -1602,8 +1609,8 @@ Proof.
 Qed.
 
 (** On the semantic side, a unique exact elaboration result also determines
-    the runtime overload selected by the core operational semantics, provided
-    the runtime environment satisfies [fun_entry_ctx_ok] and the elaboration
+    the overload selected by the core dynamic semantics, provided the
+    executable environment satisfies [fun_entry_ctx_ok] and the elaboration
     signatures agree with the declarative signature environment. *)
 Theorem elaborate_call_unique_exact_full_app_resolves :
   forall analyze env call Se Sf Sc F mu f sigma args,
@@ -1663,8 +1670,7 @@ Qed.
     - the reported choice really is a prioritized semantic match;
     - no second prioritized choice exists;
     - the corresponding core application is well typed;
-    - the core runtime semantics resolves the call to a matching runtime
-      entry.
+    - the core dynamic semantics resolves the call to a matching entry.
 
     Together, these summarize the implementation-side correctness story for
     exact overload elaboration. *)
@@ -1700,7 +1706,8 @@ Qed.
 (** The partial-call analogue packages the verified consequences of a unique
     partial elaboration result.  Since the current bridge to the core
     operational semantics is only proved for exact applications, the partial
-    theorem stops at the declarative candidate and typing judgments. *)
+    theorem stops at the declarative candidate and static-semantics
+    judgments. *)
 Theorem elaborate_call_unique_partial_correct :
   forall analyze env call Se Sf Sc mu f sigma args indices,
     elaborate_call analyze env call = ElabUnique (PartialChoice f sigma args indices) ->
@@ -1739,7 +1746,7 @@ Qed.
 (* ================================================================= *)
 
 (** The bridge theorems above still target the overloaded core syntax of
-    [Formalization.v], where calls are represented by unresolved [EApp]
+    the split core development, where calls are represented by unresolved [EApp]
     nodes.  To capture the implementation intuition more directly, we also
     package compile-time overload choices into a small resolved call-head
     layer.  A resolved call head stores the chosen [fun_entry] explicitly, so
@@ -1770,7 +1777,7 @@ Inductive resolved_call_state : Type :=
 
 (** Erasing a resolved call-head state forgets the stored entry and produces
     the corresponding ordinary core expression.  This is the connection point
-    to the core semantics in [Formalization.v]. *)
+    to the core semantics in [KipCore.Dynamic]. *)
 Definition erase_resolved_call_state
   (state : resolved_call_state) : expr :=
   match state with
@@ -1782,8 +1789,7 @@ Definition erase_resolved_call_state
 (** Well-formedness for resolved call heads records the static facts that the
     head-local semantics relies on:
 
-    - the chosen runtime entry really comes from the ambient function
-      environment;
+    - the chosen entry really comes from the ambient function environment;
     - the stored arguments are a full or partial candidate for that entry's
       signature.
 
@@ -1938,7 +1944,7 @@ Qed.
 (** Unique exact elaboration therefore produces a resolved exact call head
     that is:
 
-    - backed by the chosen runtime entry;
+    - backed by the chosen entry;
     - well typed;
     - executable via [resolved_call_head_step], whose rules never search the
       overload environment. *)
@@ -1983,8 +1989,8 @@ Qed.
 
 (** Unique partial elaboration likewise produces a resolved partial call
     head.  Since partial applications are not yet beta-redexes, this theorem
-    packages the chosen entry, the residual typing judgment, and the same
-    head-local execution guarantee for argument evaluation. *)
+    packages the chosen entry, the residual static-semantics judgment, and
+    the same head-local execution guarantee for argument evaluation. *)
 Theorem elaborate_call_unique_partial_produces_resolved_call :
   forall analyze env call Se Sf Sc F mu f sigma args indices,
     elaboration_fun_ctx env = Sf ->

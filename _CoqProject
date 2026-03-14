@@ -1,1 +1,8 @@
--Q KipCore theories
+-Q theories KipCore
+theories/Syntax.v
+theories/Static.v
+theories/StaticFacts.v
+theories/Dynamic.v
+theories/DynamicFacts.v
+theories/Soundness.v
+theories/Elaboration.v
