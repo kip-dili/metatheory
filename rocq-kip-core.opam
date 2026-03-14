@@ -1,0 +1,22 @@
+opam-version: "2.0"
+synopsis: "Mechanized proofs about core Kip: type safety, unique, static resolution of overloading, etc."
+homepage: "https://github.com/kip-dili/metatheory"
+license: "MIT"
+bug-reports: "https://github.com/kip-dili/metatheory/issues"
+depends: [
+  "ocaml"
+  "rocq-prover" {>= "9.0.0"}
+  "coq"
+]
+build: [make "-j%{jobs}%"]
+install: [make "-f" "Makefile.coq" "install"]
+flags: light-uninstall
+remove: ["rm" "-R" "%{lib}%/coq/user-contrib/KipCore"]
+maintainer: "joomy@type.systems"
+authors: [
+  "Joomy Korkut"
+]
+tags: [
+  "date:2026-03-14"
+  "logpath:KipCore"
+]
